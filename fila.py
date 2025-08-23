@@ -1,18 +1,26 @@
 import heapq
 import gerador
 
-def uniforme(a, b, x):
-    return a + ((b - a) * x)
+def uniforme(a, b, u):
+    return a + ((b - a) * u)
+
+SERVIDORES = 2
+CAPACIDADE = 5
+CHEG_MIN, CHEG_MAX = 2.0, 5.0
+SERV_MIN, SERV_MAX = 3.0, 5.0
+
 
 tempo_atual = 0.0
 proxima_chegada = 1.0
-ocupados = 0
+em_servico = 0
+fila = 0
 eventos = []
 clientes_servidos = 0
 clientes_perdidos = 0
+
 a = 87
 c = 161
-m = 10003
+m = 4894967296
 x = 1
 xs = []
 
@@ -20,79 +28,78 @@ eventos_ocorridos = []
 
 heapq.heappush(eventos, (proxima_chegada, 'CHEGADA'))
 indice = 0
-l = 10000
+l = 100000
 saida_clientes = []
 
-while eventos and indice < l:
+while eventos and indice <= l:
     xs.append(x / m)
-    eventos_ocorridos.append((tempo_atual, ocupados))
+    n_atual = em_servico + fila
+    eventos_ocorridos.append((tempo_atual, n_atual))
 
     tempo_atual, evento = heapq.heappop(eventos)
 
     if evento == 'CHEGADA':
-        print(f"[{tempo_atual:.2f}] Evento: CHEGADA")
-
-        if ocupados < 2:
-            ocupados += 1
-            clientes_servidos += 1
-
-            x = gerador.gerar(a, c, m, x)
-            tempo_servico = uniforme(1.0, 4.0, x / m)
-            indice += 1
-
-            tempo_saida = tempo_atual + tempo_servico
-            heapq.heappush(eventos, (tempo_saida, 'SAIDA'))
-
-            print(f"  → Início do atendimento. Tempo de serviço: {tempo_servico:.2f}. Saída prevista: {tempo_saida:.2f}")
+        n_atual = em_servico + fila
+        if n_atual < CAPACIDADE:
+            if em_servico < SERVIDORES:
+                em_servico += 1
+                clientes_servidos += 1
+                x = gerador.gerar(a, c, m, x)
+                tempo_servico = uniforme(SERV_MIN, SERV_MAX, x / m)
+                indice += 1
+                tempo_saida = tempo_atual + tempo_servico
+                heapq.heappush(eventos, (tempo_saida, 'SAIDA'))
+            else:
+                fila += 1
         else:
             clientes_perdidos += 1
-            print(f"  → Capacidade cheia! Cliente perdido.")
 
         if indice < l:
             x = gerador.gerar(a, c, m, x)
-            tempo_entre_chegadas = uniforme(1.0, 3.0, x / m)
+            tempo_entre_chegadas = uniforme(CHEG_MIN, CHEG_MAX, x / m)
             indice += 1
-
             proxima_chegada = tempo_atual + tempo_entre_chegadas
             heapq.heappush(eventos, (proxima_chegada, 'CHEGADA'))
-            print(f"  → Próxima chegada agendada para: {proxima_chegada:.2f}")
 
     elif evento == 'SAIDA':
-        ocupados -= 1
-        print(f"[{tempo_atual:.2f}] Evento: SAIDA")
         saida_clientes.append(tempo_atual)
+        if fila > 0:
+            fila -= 1
+            clientes_servidos += 1
+            x = gerador.gerar(a, c, m, x)
+            tempo_servico = uniforme(SERV_MIN, SERV_MAX, x / m)
+            indice += 1
+            tempo_saida = tempo_atual + tempo_servico
+            heapq.heappush(eventos, (tempo_saida, 'SAIDA'))
+        else:
+            em_servico -= 1
 
-# Finaliza com o último estado
-eventos_ocorridos.append((tempo_atual, ocupados))
+eventos_ocorridos.append((tempo_atual, em_servico + fila))
 
-# --- Cálculo das métricas ---
-tempo_vazio = 0.0
-tempo_com_um = 0.0
 tempo_total = 0.0
+tempo_por_n = [0.0 for _ in range(CAPACIDADE + 1)]
 soma_populacao_peso = 0.0
 
 for i in range(1, len(eventos_ocorridos)):
     t0, n0 = eventos_ocorridos[i - 1]
-    t1, _ = eventos_ocorridos[i]
+    t1, _  = eventos_ocorridos[i]
     dt = t1 - t0
+    if dt < 0:
+        continue
     tempo_total += dt
     soma_populacao_peso += n0 * dt
-    if n0 == 0:
-        tempo_vazio += dt
-    elif n0 == 1:
-        tempo_com_um += dt
+    if 0 <= n0 <= CAPACIDADE:
+        tempo_por_n[n0] += dt
 
-prob_vazio = tempo_vazio / tempo_total if tempo_total else 0
-populacao_media = soma_populacao_peso / tempo_total if tempo_total else 0
+prob_por_n = [ (t/tempo_total if tempo_total else 0.0) for t in tempo_por_n ]
+populacao_media = soma_populacao_peso / tempo_total if tempo_total else 0.0
 
-# --- Impressão ---
-print("\n--- Resultados ---")
-print(f"Clientes atendidos: {clientes_servidos}")
-print(f"Clientes perdidos: {clientes_perdidos}")
-print(f"Tempos de saída: {[round(t, 2) for t in saida_clientes]}")
+print(f"\n--- Resultados (G/G/{SERVIDORES}/{CAPACIDADE}) ---")
+print(f"Clientes servidos (iniciaram serviço): {clientes_servidos}")
+print(f"Clientes perdidos (sistema cheio): {clientes_perdidos}")
 
 print("\n--- Métricas da Fila ---")
 print(f"Tempo total simulado: {tempo_total:.2f} minutos")
-print(f"Probabilidade da fila estar vazia: {prob_vazio:.2%}")
-print(f"Tempo com apenas 1 cliente: {tempo_com_um:.2f} minutos")
-print(f"População média da fila: {populacao_media:.2f}")
+for n, p in enumerate(prob_por_n):
+    print(f"P[n={n}] = {p:.2%}")
+print(f"População média do sistema E[N]: {populacao_media:.3f}")
