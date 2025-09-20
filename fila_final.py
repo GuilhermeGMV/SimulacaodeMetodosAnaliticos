@@ -88,7 +88,6 @@ n_anterior      = [0 for _ in range(FILAS)]
 
 chegadas_externas = 0
 
-# ==== Medição ====
 def acumula_tempo():
     global tempo_anterior
     dt = tempo_atual - tempo_anterior
@@ -105,7 +104,6 @@ def atualiza_estado():
     for i in range(FILAS):
         n_anterior[i] = em_servico[i] + fila[i]
 
-# ==== Dinâmica ====
 def agenda_servico(fila_idx):
     u = obter_proximo_numero()
     if u is None:
@@ -128,7 +126,6 @@ def trata_chegada(fila_idx, externa):
             em_servico[fila_idx] += 1
             ok = agenda_servico(fila_idx)
             if not ok:
-                # rollback se RNG acabou
                 em_servico[fila_idx] -= 1
                 clientes_servidos[fila_idx] -= 1
         else:
@@ -136,7 +133,6 @@ def trata_chegada(fila_idx, externa):
     else:
         clientes_perdidos[fila_idx] += 1
 
-    # chegadas externas só para Q1
     if externa and fila_idx == 0 and not rng_esgotado:
         u = obter_proximo_numero()
         if u is not None:
@@ -150,12 +146,10 @@ def trata_saida(fila_idx):
         em_servico[fila_idx] -= 1
         clientes_servidos[fila_idx] += 1
 
-    # coloca próximo da fila em serviço
     if fila[fila_idx] > 0 and not rng_esgotado:
         fila[fila_idx] -= 1
         em_servico[fila_idx] += 1
         if not agenda_servico(fila_idx):
-            # não consegue agendar, desfaz
             em_servico[fila_idx] -= 1
             clientes_servidos[fila_idx] -= 1
             return
@@ -167,7 +161,6 @@ def trata_saida(fila_idx):
         if destino >= 0 and destino < FILAS:
             heapq.heappush(eventos, (tempo_atual, 'CHEGADA', destino, False))
 
-# ==== Execução ====
 print("=== SIMULAÇÃO: 3 FILAS COM ROTEAMENTO ===")
 print("Q1: G/G/1, serviço 1..2; chegadas externas 2..4")
 print("Q2: G/G/2/5, serviço 4..8; roteia 0.3->Q1, 0.5->Q2, 0.2->SAÍDA")
@@ -192,7 +185,6 @@ while eventos:
 
 acumula_tempo()
 
-# ==== Resultados ====
 print(f"\nNúmeros usados: {numeros_usados}")
 print(f"Chegadas externas geradas: {chegadas_externas}")
 print(f"Tempo final: {tempo_atual:.4f}")
